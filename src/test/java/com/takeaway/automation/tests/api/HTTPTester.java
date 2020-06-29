@@ -176,7 +176,7 @@ public class HTTPTester extends BaseTest {
             simpleHttpClient = new SimpleHttpClient();
             String res = simpleHttpClient.sendGetRequest(url, headersMap);
             Result resultObj = getResult(res);
-            Assert.assertEquals(resultObj.getTitle(), title);
+            Assert.assertEquals(resultObj.getTitle(), title, String.format("Actual title is: [%s]", resultObj.getTitle()));
             LOG.info("Success!");
         }
     }
