@@ -44,6 +44,13 @@ public class SimpleHttpClient {
         return getResponse(request);
     }
 
+    public String sendPutRequest(String url, String body, HashMap<String, String> headersMap) throws IOException {
+        Headers headers = addHeaders(headersMap);
+        RequestBody requestBody = RequestBody.create(body, MediaType.parse("application/json; charset-utf-8"));
+        Request request = new Request.Builder().url(url).headers(headers).patch(requestBody).build();
+        return getResponse(request);
+    }
+
     public String sendDeleteRequest(String url, HashMap<String, String> headersMap) throws IOException {
         Headers headers = addHeaders(headersMap);
         Request request = new Request.Builder().url(url).headers(headers).delete().build();

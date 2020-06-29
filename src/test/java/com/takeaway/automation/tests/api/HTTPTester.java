@@ -14,6 +14,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class HTTPTester extends BaseTest {
 
 
     @BeforeMethod
-    private void initSimpleHttpClient(){
+    private void initSimpleHttpClient() {
         simpleHttpClient = new SimpleHttpClient();
         // headers are constant thus headers assigned in the beginning of the test
         headersMap.put("Authorization", "Bearer iiO3ZDQpM81BIqSgW79UA2c-iCa_V0otGWZU");
@@ -38,7 +39,7 @@ public class HTTPTester extends BaseTest {
     }
 
 
-    @Test(priority=1, dataProvider = "newUserDataProvider")
+    @Test(priority = 10, dataProvider = "newUserDataProvider")
     public void createNewUser(String url, String body) throws IOException {
         String res = simpleHttpClient.sendPostRequest(url, body, headersMap);
         JsonObject js = JsonHandler.asListObject(res, "_meta");
@@ -55,20 +56,32 @@ public class HTTPTester extends BaseTest {
         Assert.assertEquals(userName, "John", "Wrong first name");
         Assert.assertEquals(lastName, "Doe", "Wrong last name");
 
-        Assert.assertEquals( gorest.getMessage(), "OK. Everything worked as expected.");
+        Assert.assertEquals(gorest.getMessage(), "OK. Everything worked as expected.");
     }
 
-    @DataProvider (name = "newUserDataProvider")
-    public Object[][] newUserDataProvider(){
-        return new Object[][] {
-                {BASE_URL.concat("/users"), "{\"first_name\":\"John\",\"last_name\":\"Doe\"," +
-                        "\"gender\":\"male\",\"email\":" +
-                        "\""+email+"\"" +
-                        ",\"status\":\"active\"}"}
-        };
+    @DataProvider(name = "newUserDataProvider")
+    public Object[][] newUserDataProvider(Method m) {
+        switch (m.getName()) {
+            case "createNewUser":
+                return new Object[][]{
+                        {BASE_URL.concat("/users"), "{\"first_name\":\"John\",\"last_name\":\"Doe\"," +
+                                "\"gender\":\"male\",\"email\":" +
+                                "\"" + email + "\"" +
+                                ",\"status\":\"active\"}"}
+                };
+            case "updateExistedUser":
+                return new Object[][]{
+                        {BASE_URL.concat(String.format("/users/%s", userId)), "{\"first_name\":\"Jon\",\"last_name\":\"Doel\"," +
+                                "\"gender\":\"male\",\"email\":" +
+                                "\"" + email + "\"" +
+                                ",\"status\":\"active\"}"}
+                };
+        }
+        return null;
     }
 
-    @Test(priority = 2)
+
+    @Test(priority = 20)
     public void getCreatedUserDetails() throws IOException {
         String res = simpleHttpClient.sendGetRequest(BASE_URL.concat(String.format("/users/%s", userId)), headersMap);
         Result result = getResult(res);
@@ -77,15 +90,33 @@ public class HTTPTester extends BaseTest {
         Assert.assertEquals(result.getLast_name(), "Doe", "Wrong last name");
     }
 
-    @Test(priority=3)
+    @Test(priority = 25, dataProvider = "newUserDataProvider")
+    public void updateExistedUser(String path, String jsonBody) throws IOException {
+        String res = simpleHttpClient.sendGetRequest(path, headersMap);
+        Result resultGet = getResult(res);
+        simpleHttpClient = new SimpleHttpClient();
+        res = simpleHttpClient.sendPutRequest(BASE_URL.concat(String.format("/users/%s", userId)), jsonBody, headersMap);
+        Result result = getResult(res);
+        compareUpdatedUserDetails(resultGet, result);
+        Assert.assertTrue(compareUpdatedUserDetails(resultGet, result));
+
+    }
+
+    private boolean compareUpdatedUserDetails(Result getResult, Result updateResult) {
+        return updateResult.getId().equals(userId) &&
+                !getResult.getFirst_name().equals(updateResult.getFirst_name()) &&
+                !getResult.getLast_name().equals(updateResult.getLast_name());
+    }
+
+    @Test(priority = 30)
     public void deleteUser() throws IOException {
         String res = simpleHttpClient.sendDeleteRequest(BASE_URL.concat(String.format("/users/%s", userId)), headersMap);
         gorest = getMeta(res);
         Assert.assertEquals("The request was handled successfully and the response contains no body content.", gorest.getMessage());
     }
 
-    private GoRest getMeta(String res ){
-        JsonObject jo =  JsonHandler.asListObject(res, "_meta");
+    private GoRest getMeta(String res) {
+        JsonObject jo = JsonHandler.asListObject(res, "_meta");
         return JsonHandler.getJsonAsClassObject(jo.toString(), GoRest.class);
     }
 
@@ -94,22 +125,22 @@ public class HTTPTester extends BaseTest {
         return JsonHandler.getJsonAsClassObject(jo.toString(), Result.class);
     }
 
-    @Test(priority = 4)
+    @Test(priority = 40)
     public void getUsers() throws IOException {
         String res = simpleHttpClient.sendGetRequest(BASE_URL.concat("/users"), headersMap);
         JsonArray result = JsonHandler.asList(res, "result");
         List<Result> resultList = JsonHandler.getJsonAsClassObjectList(result.toString(), Result[].class);
     }
 
-    @Test(priority = 5)
+    @Test(priority = 50)
     public void getSpecificPage() throws IOException {
         String res = simpleHttpClient.sendGetRequest(BASE_URL.concat("/users?page=5"), headersMap);
         gorest = getMeta(res);
-        Assert.assertEquals( gorest.getCurrentPage(), 5);
+        Assert.assertEquals(gorest.getCurrentPage(), 5);
 
     }
 
-    @Test(priority=6)
+    @Test(priority = 60)
     public void veirfyAuthenticationFailure() throws IOException {
         HashMap<String, String> map = new HashMap<>();
         map.put("Authorization", "Bearer iiO3ZDQpM81BIqSgW79UA2c-iCa_V0otGWZUg");
@@ -118,11 +149,12 @@ public class HTTPTester extends BaseTest {
         gorest = getMeta(res);
         Assert.assertEquals(gorest.getCode(), 401, "Error, it should be status code 401, not authorized");
     }
-    @Test(priority=7)
+
+    @Test(priority = 70)
     public void getAllPosts() throws IOException {
         List<Result> resultList = getResults("/posts");
-        Assert.assertTrue(resultList.size()!=0);
-        for(Result result : resultList){
+        Assert.assertTrue(resultList.size() != 0);
+        for (Result result : resultList) {
             Assert.assertTrue(result.getLinks().getSelf().toString().contains("posts"));
         }
     }
@@ -134,10 +166,10 @@ public class HTTPTester extends BaseTest {
         return JsonHandler.getJsonAsClassObjectList(jsonArrayResult.toString(), Result[].class);
     }
 
-    @Test(priority = 8)
+    @Test(priority = 80)
     public void getSpecificPost() throws IOException {
         List<Result> resultList = getResults("/posts");
-        for(Result result : resultList){
+        for (Result result : resultList) {
             String id = result.getId();
             String title = result.getTitle();
             String url = BASE_URL.concat(String.format("/posts/%s", id));
@@ -149,7 +181,7 @@ public class HTTPTester extends BaseTest {
         }
     }
 
-    @Test(priority = 9)
+    @Test(priority = 90)
     public void deletePost() throws IOException {
         List<Result> resultList = getResults("/posts");
         String id = resultList.get(0).getId();
@@ -169,13 +201,12 @@ public class HTTPTester extends BaseTest {
 
     }
 
-    @Test(priority = 10)
-    public void getAllCommentsAndCompareOneByOne() throws IOException {
-        List<Result> resultList = getResults("/comments");
-        for(Result result : resultList){
+    public void getResponseAsList(String path) throws IOException {
+        List<Result> resultList = getResults(path);
+        for (Result result : resultList) {
             String id = result.getId();
             String body = result.getBody();
-            String url = BASE_URL.concat(String.format("/comments/%s", id));
+            String url = BASE_URL.concat(String.format("%s/%s", path, id));
             simpleHttpClient = new SimpleHttpClient();
             String res = simpleHttpClient.sendGetRequest(url, headersMap);
             Result resultObj = getResult(res);
@@ -184,12 +215,19 @@ public class HTTPTester extends BaseTest {
         }
     }
 
-    @Test(priority = 11)
-    public void getAllAlbumsAndCompareOneByOne(){
-
+    @Test(priority = 100)
+    public void getAllCommentsAndCompareOneByOne() throws IOException {
+        getResponseAsList("/comments");
     }
 
+    @Test(priority = 110)
+    public void getAllAlbumsAndCompareOneByOne() throws IOException {
+        getResponseAsList("/albums");
+    }
 
-
+    @Test(priority = 120)
+    public void getAllPhotoAndCompareOneByOne() throws IOException {
+        getResponseAsList("/photos");
+    }
 
 }
